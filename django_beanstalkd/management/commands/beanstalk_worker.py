@@ -7,7 +7,7 @@ import traceback
 import time
 from django.conf import settings
 from django.core.management.base import NoArgsCommand
-from django_beanstalkd import connect_beanstalkd, BeanstalkError
+from django_beanstalkd import connect_beanstalkd, BeanstalkError, signals
 from beanstalkc import SocketError
 
 
@@ -137,6 +137,7 @@ class Command(NoArgsCommand):
             if job_name in self.jobs:
                 logger.debug("Calling %s with arg: %s" % (job_name, job.body))
                 try:
+                    signals.beanstalk_job_started.send(self.__class__, name=job_name, arg=job.body)
                     self.jobs[job_name](job.body)
                 except Exception, e:
                     tp, value, tb = sys.exc_info()
@@ -152,5 +153,7 @@ class Command(NoArgsCommand):
                     job.bury()
                 else:
                     job.delete()
+                finally:
+                    signals.beanstalk_job_finished.send(self.__class__, name=job_name)
             else:
                 job.release()
